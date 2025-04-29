@@ -23,7 +23,7 @@
 # Pieter Abbeel (pabbeel@cs.berkeley.edu).
 
 
-STUDENT_CODE_DEFAULT = 'addition.py'
-PROJECT_TEST_CLASSES = 'tutorialTestClasses.py'
-PROJECT_NAME = 'Project 0: Tutorial'
+STUDENT_CODE_DEFAULT = 'tokenizer.py,classification.py,evaluation.py,generation.py,transformerGrammar.py'
+PROJECT_TEST_CLASSES = 'transformerTestClasses.py'
+PROJECT_NAME = 'Project: HuggingFace Transformers'
 TIME_ZONE = 'Asia/Shanghai'

@@ -1,4 +1,4 @@
-name: "The BPE Tokenizer"
+name: "The Macro F1 Score"
 depends: ""
 max_points: "2"
 timeout: "20"
