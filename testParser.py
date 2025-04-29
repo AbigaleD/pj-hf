@@ -72,7 +72,7 @@ class TestParser(object):
             if m:
                 msg = []
                 i += 1
-                while (not re.match('\A\s*"""\s*\Z', lines[i])):
+                while (not re.match(r'\A\s*"""\s*\Z', lines[i])):
                     msg.append(raw_lines[i])
                     i += 1
                 test[m.group(1)] = '\n'.join(msg)
