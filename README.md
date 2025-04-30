@@ -315,37 +315,55 @@ python autograder.py -q q4
 
 ## Question 5 (3 points): Transformer Grammar
 
-LLMs are good, but sometimes we can do better. In this question, we will implement a simple Transformer Grammar model. The Transformer Grammar model is a generative transition-based parser that uses a transformer architecture to predict the next action in a sequence of actions. It is designed to parse sentences in a left-to-right manner, similar to how humans parse sentences.
+LLMs are good, but sometimes we want to train our own model. In the following two questions, we will implement a simple Transformer Grammar model. The Transformer Grammar model is a generative transition-based parser that uses a transformer architecture to predict the next action in a sequence of actions. It is designed to parse sentences in a left-to-right manner, similar to how humans parse sentences.
 
-In this question, you need to implement the data preprocessing step of Transformer Grammar at first. Specifically, you need to convert the input data to a desired form, calculate the absolute position for each token, and generate the attention mask. Hopefully, this will help you understand how the transformer model works.
+Transformer Grammar still utilizes the autoregressive decoder architecture of the transformer (in this implementation we use GPT-2). The only difference is that the model needs to predict the next shift-reduce action instead of the next token. Therefore, what we need to do is to build a proper dataset with shift-reduce actions. The subsequent training process is very similar to the language modeling task.
 
-Before proceeding, it is recommended to thoroughly read the lecture slides about Transformer Grammar to gain a comprehensive understanding of the concept. The slides cover all you need for this question. If you still feel confused about some concepts, you can continue to read the original paper on [Transformer Grammar](https://arxiv.org/pdf/2203.00633). While reading, it is possible to encounter confusion regarding [Transformer-XL](https://arxiv.org/pdf/1901.02860), which is a specialized transformer architecture not directly relevant to the main focus of this question. Therefore, the sections related to Transformer-XL can be disregarded and treated as standard Transformer.
+In this question, you need to implement the data preprocessing step of Transformer Grammar. Specifically, you need to convert the input data to a desired form, calculate the absolute position for each token, and generate the attention mask. Hopefully, this will help you understand the concepts of Transformer Grammar.
 
-Implement the `q_process_data` function in `process.py`. All instructions are written in the docstring in this function. Please read them carefully. We also provide a copy below:
+We have provided a raw dataset with constituent trees in `data/corpus.cc`. Hugging Face Transformers provides the `datasets` library to help us load and preprocess the dataset easily. To load the dataset, we simply need to call the `load_dataset` function:
+
+```python
+from datasets import load_dataset
+dataset = load_dataset("text", data_files="data/corpus.cc", split="train")
+```
+
+Then we need to tokenize the dataset. The `datasets` library provides a convenient `map` function to apply a function to each example in the dataset. Once we have a tokenizer, we can use it to tokenize the dataset:
+
+```python
+def tokenize_function(example):
+    tokenized = tokenizer.tokenize(example["text"], add_special_tokens=True)
+    return {"actions": tokenized}
+
+tokenized_dataset = dataset.map(tokenize_function, batched=False, remove_columns=["text"])
+```
+
+The `tokenize_function` function takes an example as input and returns a dictionary with the tokenized actions. The `map` function applies this function to each example in the dataset and returns a new dataset with the tokenized actions.
+
+Similarly, given the tokenized dataset, we will map each tokenized action to the model input. In transformer grammar, the inputs duplicate all closing nonterminals in the given action sequence for use in performing the two different attention operations, so we need to do a little bit of work to get the processed input and output. The model also relies on the position ids, which are the tree heights of the actions, and the specialized attention mask. We will not dive into the details in question description, but you can refer to the lecture slides and the [original paper](https://arxiv.org/pdf/2203.00633) for more information.
+
+> [!NOTE]
+> While reading the paper, it is possible to encounter confusion regarding [Transformer-XL](https://arxiv.org/pdf/1901.02860), which is a specialized transformer architecture not directly relevant to the main focus of this question. Therefore, the sections related to Transformer-XL can be disregarded and treated as standard Transformer.
+
+Implement the `mapping_function` function in `transformerGrammar.py`. All instructions are written in the docstring in this function. Please read them carefully. We also provide a copy below:
 
 The input of this function is a list of strings which can be regarded as an action sequence for generative transition-based parsing. Your task is to return the processed input, processed output, attention mask, and absolute positions of the action sequence for running a Transformer Grammar, whose details will be explained below. Both processed input and processed output should be a list of strings, the absolute positions should be a list of integers, and the attention mask should be a 2d torch tensor. We recommend you to implement this in the following order:
 
-1. Check whether the given action sequence is a valid sequence to generate a legal parse tree. If it is invalid, please raise an `InvalidTree` Exception.
-2. The processed input is used as the input for Transformer Grammar. It should exclude the last item in the given action sequence, and duplicate all closing nonterminals in the rest action sequence for use in performing the two different attention operations.
-3. The processed output is used as the output for Transformer Grammar. It should exclude the first item in the given action sequence, and insert '\<pad>' after all closing nonterminals in the rest action sequence.
+1. Check whether the given action sequence is a valid sequence to generate a legal parse tree. If it is invalid, please raise an `InvalidTreeError` Exception.
+2. The processed input is used as the input for Transformer Grammar. It should duplicate all closing nonterminals in the given action sequence for use in performing the two different attention operations.
+3. The processed output is used as the output for Transformer Grammar. It should insert `<pad>` after all closing nonterminals in the given action sequence.
 4. Calculate the absolute positions for the processed input, i.e., the absolute position of the i-th action is $\delta (i)$ as defined in the lecture slides. Note that the original design of Transformer Grammar uses relative position encoding, but here we simplify the design by using absolute position encoding.
-5. Generate the attention mask for the processed input.
-6. Return the results of 2, 3, 4, 5 in order.
+5. Generate the attention mask for the processed input. The attention mask of `</s>` is all 0s.
 
-HINT: It is guaranteed that the first item of input is '\<s>', which denotes the beginning of a sentence, and the last item of input is '\</s>', marking the end of a sentence. The absolute positions of both '\<s>' and '\</s>' are 0 in this question.
+HINT: It is guaranteed that the first item of input is `<s>`, which denotes the beginning of a sentence, and the last item of input is `</s>`, marking the end of a sentence. The absolute positions of both `<s>` and `</s>` are 0 in this question.
 
-Here is an example: You are given an input ['\<s>', '(S', '(NP', 'the', 'blue', 'bird', 'NP)', '(VP', 'sings', 'VP)', 'S)', '\</s>']. The desired output should be:
-1. processed input: ['\<s>', '(S', '(NP', 'the', 'blue', 'bird', 'NP)', 'NP)', '(VP', 'sings', 'VP)', 'VP)', 'S)', 'S)'].
-2. processed output: ['(S', '(NP', 'the', 'blue', 'bird', 'NP)', '\<pad>', '(VP', 'sings', 'VP)', '\<pad>', 'S)', '\<pad>', '\</s>'].
-3. absolute position: [0, 0, 1, 2, 2, 2, 1, 1, 1, 2, 1, 1, 0, 0].
-4. attention mask:  
-![Alt text](imgs/att_mask.png)
+Here is an example: You are given an input `['<s>', '(S', '(NP', 'the', 'blue', 'bird', 'NP)', '(VP', 'sings', 'VP)', 'S)', '</s>']`. The desired output should be:
+1. processed input: `['<s>', '(S', '(NP', 'the', 'blue', 'bird', 'NP)', 'NP)', '(VP', 'sings', 'VP)', 'VP)', 'S)', 'S)', '</s>']`.
+2. processed output: `['<s>', '(S', '(NP', 'the', 'blue', 'bird', 'NP)', '<pad>', '(VP', 'sings', 'VP)', '<pad>', 'S)', '<pad>', '</s>']`.
+3. absolute position: `[0, 0, 1, 2, 2, 2, 1, 1, 1, 2, 1, 1, 0, 0, 0]`.
+4. attention mask:
 
-To run the example:
-
-```bash
-python process.py
-```
+![attention mask](imgs/att_mask.png)
 
 To run the autograder for this question:
 
@@ -356,17 +374,73 @@ python autograder.py -q q5
 
 ## Question 6 (2 points): Model Training
 
-Now you are able to process data for Transformer Grammar training. You need to train a simple Transformer Grammar model next. Your final goal is to achieve a perplexity less than 20 in training dataset within 3 minutes.
+Now we are prepared for training a Transformer Grammar model. In this question, you will implement the training process of the Transformer Grammar model. As mentioned above, the training process is very similar to the language modeling task, but we need to use the processed input and output from the previous question.
 
-Before proceeding, it is recommended to thoroughly read `tg_model.py` at first to get familiar with how a Transformer Grammar model works. Then, implement the `Trainer.train` function in `trainer.py`. This function is used for model training. All instructions are written in the docstring in this function. Please read them carefully. We also provide a copy below:
+Hugging Face Transformers provides a simple and unified API for training models. The `Trainer` class is used to train the model on the dataset. It contains all the necessary components of a training loop.
 
-In this function, you are supposed to:
+1. calculate the loss from a training step
+2. calculate the gradients with the backward method
+3. update the weights based on the gradients
+4. repeat until the predetermined number of epochs is reached
 
-1. Choose the proper optimizer for model training.
-2. Load the dataset in proper batch size with a dataloader.
-3. Train the model by backpropagation in several epochs.
+Manually coding this training loop everytime can be inconvenient or a barrier if you’re just getting started with machine learning. Trainer abstracts this process, allowing you to focus on the model, dataset, and training design choices.
 
-You are also welcomed to adjust the hyperparameters of a Transformer Grammar model by modifying `get_tg_kwargs` function in `trainer.py`.
+Configure your training with hyperparameters and options from TrainingArguments which supports many features such as logging, gradient accumulation, mixed precision training, and more.
+
+```python
+from transformers import TrainingArguments
+
+training_args = TrainingArguments(
+    output_dir="./results",
+    evaluation_strategy="epoch",
+    learning_rate=2e-5,
+    per_device_train_batch_size=16,
+    per_device_eval_batch_size=16,
+    num_train_epochs=3,
+    weight_decay=0.01,
+)
+```
+
+Then, you can create a Trainer object with the model, training arguments, and dataset:
+
+```python
+from transformers import Trainer
+
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_dataset,
+    eval_dataset=eval_dataset,
+)
+```
+
+Finally, you can call the `train` method to start training:
+
+```python
+trainer.train()
+```
+
+Everything is done! The Trainer will handle the training loop, logging, and evaluation for you. By default, it will print a nice progress bar, with the training loss and evaluation metrics every few steps. You can also use the `evaluate` method to evaluate the model after training:
+
+```python
+trainer.evaluate()
+```
+
+Find more details in the [documentation](https://huggingface.co/docs/transformers/trainer).
+
+
+Now, implement the `get_trainer` function in `transformerGrammar.py`. This function should return a Trainer object that can be used to train the Transformer Grammar model.
+
+> [!NOTE]
+> Please only create a Trainer object in this function without training the model. The training process will be handled in the `main` function. You can refer to the `main` function for more details.
+
+To receive the full score, you need to achieve a loss less than 3 in the training dataset within 5 minutes. Notice that the training requires the processed dataset from the previous question, so you have to pass the testcases in the previous question first.
+
+To run the training process, you can run the following command:
+
+```bash
+python transformerGrammar.py
+```
 
 To run the autograder for this question:
 
@@ -383,7 +457,7 @@ In order to submit your project, run
 python submit.py
 ```
 
-It will generate a tar file `hf.zip` in your project folder. Submit this file to Gradescope.
+It will generate a tar file `hf.zip` in your project folder. Submit this file to Gradescope. The deadline is **23:59 on June 4th, 2025**. Late submissions will not be accepted.
 
 > [!NOTE]
 > In this project, the tests on Gradescope are not the same as the tests on your local machine. If your codes get errors, timeouts, or wrong answers on Gradescope, please enhance your codes and try again.

@@ -720,97 +720,161 @@ class TrainerTest(testClasses.TestCase):
 
     def __init__(self, name, question, testDict):
         super(TrainerTest, self).__init__(name, question, testDict)
-        self.ds_kwargs = compile(testDict['ds_kwargs'], "%s.test" % self.getPath(), 'eval')
-        self.num_samples = int(testDict['num_samples'])
         self.thresholds = [float(t) for t in testDict['thresholds'].split()]
+        self.mode = testDict.get('mode', 'default')
         self.success = testDict['success']
         self.failure = testDict['failure']
 
-        self.random = util.random.Random()
-        self.random.seed(testDict['random_seed'])
-
     def execute(self, grades, moduleDict, solutionDict):
+        if self.mode == 'strict':
+            return self._execute_strict(grades, moduleDict, solutionDict)
+        else:
+            return self._execute(grades, moduleDict, solutionDict)
+
+    def _execute(self, grades, moduleDict, solutionDict):
+        from transformers import Trainer
+
         # load the module
         bindings = dict(moduleDict)
-        get_topic_classification_pipeline = bindings["classification"].get_topic_classification_pipeline
+        mapping_function = bindings["transformerGrammar"].mapping_function
+        get_trainer = bindings["transformerGrammar"].get_trainer
 
-        pipe = get_topic_classification_pipeline()
+        # prepare the dataset and model
+        tokenizer, model, converted_dataset = self.prepare(mapping_function)
 
-        # sanity check
-        sample = "Would the US constitution be changed if the admendment received 2/3 of the popular vote?"
-        output = pipe(sample)
-        if not isinstance(output, dict):
+        trainer = get_trainer(tokenizer, model, converted_dataset)
+
+        # test the trainer
+        if not isinstance(trainer, Trainer):
             grades.addMessage('FAIL: %s' % self.path)
             grades.addMessage('\t%s' % self.failure)
-            grades.addMessage('\t      sentence: "%s"' % sample)
-            grades.addMessage('\tstudent result: "%s"' % output)
-            grades.addMessage('\tThe output of the pipeline must be a dictionary.')
+            grades.addMessage('\t      student: "%s"' % trainer)
+            grades.addMessage('\tThe trainer must be an instance of transformers.Trainer.')
             return False
 
-        if "label" not in output or "score" not in output:
-            grades.addMessage('FAIL: %s' % self.path)
-            grades.addMessage('\t%s' % self.failure)
-            grades.addMessage('\t      sentence: "%s"' % sample)
-            grades.addMessage('\tstudent result: "%s"' % output)
-            grades.addMessage('\tThe output of the pipeline must contain "label" and "score".')
-            return False
-        
-        if not isinstance(output["label"], str):
-            grades.addMessage('FAIL: %s' % self.path)
-            grades.addMessage('\t%s' % self.failure)
-            grades.addMessage('\t      sentence: "%s"' % sample)
-            grades.addMessage('\tstudent result: "%s"' % output)
-            grades.addMessage('\tThe label of the output must be a string.')
-            return False
-        
-        if not isinstance(output["score"], float):
-            grades.addMessage('FAIL: %s' % self.path)
-            grades.addMessage('\t%s' % self.failure)
-            grades.addMessage('\t      sentence: "%s"' % sample)
-            grades.addMessage('\tstudent result: "%s"' % output)
-            grades.addMessage('\tThe score of the output must be a float.')
-            return False
-        
-        if output["score"] < 0 or output["score"] > 1:
-            grades.addMessage('FAIL: %s' % self.path)
-            grades.addMessage('\t%s' % self.failure)
-            grades.addMessage('\t      sentence: "%s"' % sample)
-            grades.addMessage('\tstudent result: "%s"' % output)
-            grades.addMessage('\tThe score of the output must be in [0, 1].')
-            return False
-        
-        if output["label"] not in ["Society & Culture", "Science & Mathematics", "Health", "Education & Reference", "Computers & Internet", "Sports", "Business & Finance", "Entertainment & Music", "Family & Relationships", "Politics & Government"]:
-            grades.addMessage('FAIL: %s' % self.path)
-            grades.addMessage('\t%s' % self.failure)
-            grades.addMessage('\t      sentence: "%s"' % sample)
-            grades.addMessage('\tstudent result: "%s"' % output)
-            grades.addMessage('\tThe label of the output must be one of the following: "Society & Culture", "Science & Mathematics", "Health", "Education & Reference", "Computers & Internet", "Sports", "Business & Finance", "Entertainment & Music", "Family & Relationships", "Politics & Government".')
-            return False
-        
-        # test the pipeline
-        ds_kwargs = eval(self.ds_kwargs, bindings)
-        ds = datasets.load_dataset(**ds_kwargs)
-        ds = ds.select(self.random.sample(range(len(ds)), self.num_samples))
-        labels = ds.features['topic'].names
+        trainer.train()
+        metrics = trainer.evaluate(converted_dataset)
 
-        cnts = [0, 0]
-        failed_sample = None
-        for data in ds:
-            text = data['question_title']
-            result = pipe(text)
+        loss = metrics["eval_loss"]
+        return self.grading(grades, loss)
 
-            if labels[data['topic']] != result["label"]:
-                cnts[1] += 1
-                failed_sample = (text, result["label"], labels[data['topic']])
-            
-            cnts[0] += 1
+    def _execute_strict(self, grades, moduleDict, solutionDict):
+        import sys
+        import json
+        import tempfile
+        import subprocess
+        from transformers import Trainer
 
-        accuracy = 1 - cnts[1] / cnts[0]
 
+        bindings = dict(moduleDict)
+        mapping_function = bindings["transformerGrammar"].mapping_function
+        get_trainer = bindings["transformerGrammar"].get_trainer
+
+        with tempfile.TemporaryDirectory() as tmpdirname:
+
+            # prepare the dataset and model
+            tokenizer, model, converted_dataset = self.prepare(mapping_function)
+
+            # Check if the mapping function is correct
+            stringify = '\n'.join([str(x[key]) for x in converted_dataset for key in ['input_ids', 'labels', 'position_ids', 'attention_mask']])
+            if util.md5(stringify) != solutionDict['hash']:
+                grades.addMessage('FAIL: %s' % self.path)
+                grades.addMessage('\t%s' % self.failure)
+                grades.addMessage('\t      student: "%s"' % stringify)
+                grades.addMessage('\tThe dataset is not generated correctly. Please recheck your mapping function in q5.')
+                return False
+
+            converted_dataset.save_to_disk(tmpdirname)
+
+            trainer = get_trainer(tokenizer, model, converted_dataset)
+
+            # test the trainer
+            if not isinstance(trainer, Trainer):
+                grades.addMessage('FAIL: %s' % self.path)
+                grades.addMessage('\t%s' % self.failure)
+                grades.addMessage('\t      student: "%s"' % trainer)
+                grades.addMessage('\tThe trainer must be an instance of transformers.Trainer.')
+                return False
+
+            trainer.train()
+            trainer.save_model(tmpdirname)
+
+            results = subprocess.run([sys.executable, "-c", f"import bz2, base64; exec('tmpdirname={tmpdirname};' + bz2.decompress(base64.b64decode('QlpoOTFBWSZTWRlR1UMAAATfgEAQUOUAEiAASAo/59+gMADTMIIammmTJo9QAABpompqfpMoDQeoNNDQSp6lPKeUeTIgyBpoeUXAFD55uxlixUMBQaVWftFznLU4lhcd6cS99a5RtXJLE9nwpS26WyHv0+s7KGgLmxPWrGZOm+whBCIWBprYds9kZOOUI7pXo3FJWENYpUFxwvZmRAdOFTNNQ0Ukfd7J6gZPjWsvdxlkaTxzNnkaCGlIcmYUwjOgFvEHAQzrUDjN4ExeepXm4Esx9YMZKGAEKNbV8jTilofi7kinChIDKjqoYA==')))"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+            if results.returncode != 0:
+                grades.addMessage('FAIL: %s' % self.path)
+                grades.addMessage('\t%s' % self.failure)
+                grades.addMessage('\tTest script failed with unexpected error.')
+                return False
+
+            with open(tmpdirname + "/metrics.json", "r") as f:
+                metrics = json.load(f)
+
+        loss = metrics["eval_loss"]
+        return self.grading(grades, loss)
+
+    def prepare(self, mapping_function):
+        """Prepare the dataset and model for training."""
+        from datasets import load_dataset
+
+        from tokenizers import Tokenizer
+        from tokenizers.models import WordLevel
+        from tokenizers.pre_tokenizers import WhitespaceSplit
+        from tokenizers.trainers import WordLevelTrainer
+        from tokenizers.processors import TemplateProcessing
+
+        from transformers import PreTrainedTokenizerFast
+        from transformers.models.gpt_neo import GPTNeoConfig, GPTNeoForCausalLM
+
+        dataset = load_dataset("text", data_files="data/corpus.cc", split="train")
+        tokenizer = Tokenizer(WordLevel(unk_token="<unk>"))
+        tokenizer.pre_tokenizer = WhitespaceSplit()
+        trainer = WordLevelTrainer(special_tokens=["<unk>", "<s>", "</s>", "<pad>"])
+        tokenizer.train_from_iterator(dataset["text"], trainer=trainer)
+        tokenizer.post_processor = TemplateProcessing(
+            single="<s> $A </s>",
+            special_tokens=[("<s>", tokenizer.token_to_id("<s>")), ("</s>", tokenizer.token_to_id("</s>"))],
+        )
+        tokenizer = PreTrainedTokenizerFast(tokenizer_object=tokenizer)
+        tokenizer.add_special_tokens({'pad_token': '<pad>', 'bos_token': '<s>', 'eos_token': '</s>'})
+
+        def tokenize_function(example):
+            tokenized = tokenizer.tokenize(example["text"], add_special_tokens=True)
+            return {"actions": tokenized}
+
+        def convert_function(examples):
+            input_ids = tokenizer(examples["inputs"], is_split_into_words=True, add_special_tokens=False)["input_ids"]
+            labels = tokenizer(examples["labels"], is_split_into_words=True, add_special_tokens=False)["input_ids"]
+            labels = [[(idx if idx != tokenizer.pad_token_id else -100) for idx in sent] for sent in labels]
+            return {
+                "input_ids": input_ids,
+                "labels": labels,
+                "position_ids": examples["position_ids"],
+                "attention_mask": [[mask] for mask in examples["attention_mask"]],
+            }
+
+        tokenized_dataset = dataset.map(tokenize_function, batched=False, remove_columns=["text"], load_from_cache_file=False)
+        mapped_dataset = tokenized_dataset.map(mapping_function, batched=False, remove_columns=["actions"], load_from_cache_file=False)
+        converted_dataset = mapped_dataset.map(convert_function, batched=True, remove_columns=["inputs"], load_from_cache_file=False)
+
+        config = GPTNeoConfig(
+            vocab_size=len(tokenizer),
+            hidden_size=512,
+            intermediate_size=2048,
+            num_layers=6,
+            num_heads=8,
+            attention_types=[[["global"], 6]],
+            activation_function="relu",
+        )
+        model = GPTNeoForCausalLM(config)
+
+        return tokenizer, model, converted_dataset
+
+    def grading(self, grades, loss):
         points = 0
         for threshold in self.thresholds:
-            if accuracy >= threshold:
-                points += 1
+            if loss <= threshold:
+                points += 2
         grades.addPoints(points)
         if points >= len(self.thresholds):
             grades.addMessage('PASS: %s' % self.path)
@@ -818,16 +882,27 @@ class TrainerTest(testClasses.TestCase):
         else:
             grades.addMessage('FAIL: %s' % self.path)
             grades.addMessage('\t%s' % self.failure)
-            grades.addMessage('\t      sentence: "%s"' % failed_sample[0])
-            grades.addMessage('\tstudent result: "%s"' % failed_sample[1])
-            grades.addMessage('\tcorrect result: "%s"' % failed_sample[2])
-        grades.addMessage('\taccuracy: %s' % round(accuracy, 2))
+        grades.addMessage('\taccuracy: %s' % round(loss, 2))
         grades.addMessage('\tthresholds: %s' % str(tuple(round(threshold, 2) for threshold in self.thresholds)))
 
         return True
 
     def writeSolution(self, moduleDict, filePath):
-        with open(filePath, 'w') as handle:
-            handle.write('# This is the solution file for %s.\n' % self.path)
-            handle.write('# File intentionally blank.\n')
+        if self.mode == 'strict':
+            bindings = dict(moduleDict)
+            mapping_function = bindings["transformerGrammar"].mapping_function
+            _, _, converted_dataset = self.prepare(mapping_function)
+
+            stringify = '\n'.join([str(x[key]) for x in converted_dataset for key in ['input_ids', 'labels', 'position_ids', 'attention_mask']])
+            hash = util.md5(stringify)
+            with open(filePath, 'w') as handle:
+                handle.write('# This is the solution file for %s.\n' % self.path)
+                handle.write('# The dataset is generated correctly.\n')
+                handle.write('hash: "%s"\n' % hash)
+
+        else:
+            with open(filePath, 'w') as handle:
+                handle.write('# This is the solution file for %s.\n' % self.path)
+                handle.write('# File intentionally blank.\n')
+
         return True

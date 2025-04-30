@@ -38,10 +38,10 @@ def mapping_function(example: dict) -> dict:
         Your task is to return the processed input, processed output, attention mask, and absolute positions of the action sequence for valid actions sequence. The following order may be your implementation order:
 
             1. Check whether the given action sequence is a valid sequence to generate a legal parse tree. If it is invalid, please raise an InvalidTreeError Exception.
-            2. The processed input: a list of strings. It should duplicate all closing nonterminals in the rest action sequence.
-            3. The processed output: a list of strings. It should insert '<pad>' after all closing nonterminals in the rest action sequence.
+            2. The processed input: a list of strings. It should duplicate all closing nonterminals in the given action sequence.
+            3. The processed output: a list of strings. It should insert '<pad>' after all closing nonterminals in the given action sequence.
             4. The absolute positions: a list of integers. The absolute position of each token is defined as the depth of it in the tree.
-            5. The attention mask: a 2d torch tensor. This is the attention mask with STACK/COMPOSE attention. The attention mask of '</s>' is all 1s.
+            5. The attention mask: a 2d torch tensor. This is the attention mask with STACK/COMPOSE attention. The attention mask of '</s>' is all 0s.
 
         HINT: It is guaranteed that the first item of input is '<s>' (beginning of sequence), and the last item of input is '</s>' (end of sequence). The absolute positions of both '<s>' and '</s>' are 0 in this question.
     
@@ -59,7 +59,7 @@ def mapping_function(example: dict) -> dict:
     Example:
         >>> mapping_function({"actions": ["<s>", "(S", "(NP", "the", "blue", "bird", "NP)", "(VP", "sings", "VP)", "S)", "</s>"]})
         {
-            'inputs': ['<s>', '(S', '(NP', 'the', 'blue', 'bird', 'NP)', 'NP)', '(VP', 'sings', 'VP)', 'VP)', 'S)', 'S)', "</s>"],
+            'inputs': ['<s>', '(S', '(NP', 'the', 'blue', 'bird', 'NP)', 'NP)', '(VP', 'sings', 'VP)', 'VP)', 'S)', 'S)', '</s>'],
             'labels': ['<s>', '(S', '(NP', 'the', 'blue', 'bird', 'NP)', '<pad>', '(VP', 'sings', 'VP)', '<pad>', 'S)', '<pad>', '</s>'],
             'position_ids': [0, 0, 1, 2, 2, 2, 1, 1, 1, 2, 1, 1, 0, 0, 0],
             'attention_mask': tensor([[...]])
@@ -131,7 +131,6 @@ def get_trainer(
         batch["attention_mask"] = torch.stack(batch["attention_mask"])
 
         return batch
-
 
     """YOUR CODE HERE"""
     util.raiseNotDefined()
