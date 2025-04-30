@@ -882,7 +882,7 @@ class TrainerTest(testClasses.TestCase):
         else:
             grades.addMessage('FAIL: %s' % self.path)
             grades.addMessage('\t%s' % self.failure)
-        grades.addMessage('\taccuracy: %s' % round(loss, 2))
+        grades.addMessage('\tloss: %s' % round(loss, 2))
         grades.addMessage('\tthresholds: %s' % str(tuple(round(threshold, 2) for threshold in self.thresholds)))
 
         return True
