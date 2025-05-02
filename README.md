@@ -457,7 +457,7 @@ In order to submit your project, run
 python submit.py
 ```
 
-It will generate a tar file `hf.zip` in your project folder. Submit this file to Gradescope. The deadline is **23:59 on June 4th, 2025**. Late submissions will not be accepted.
+It will generate a zip file `hf.zip` in your project folder. Submit this file to Gradescope. The deadline is **23:59 on June 4th, 2025**. Late submissions will not be accepted.
 
 > [!NOTE]
 > In this project, the tests on Gradescope are not the same as the tests on your local machine. If your codes get errors, timeouts, or wrong answers on Gradescope, please enhance your codes and try again.
