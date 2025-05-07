@@ -15,6 +15,9 @@ This project is designed to help you get familiar with the Hugging Face Transfor
 
 <sub>* The grader of this project is originally modified from the pacman project from CS188 in Berkeley, developed in spring 2019. Problems are designed for CS274A Natural Language Processing course project in ShanghaiTech University.</sub>
 
+> [!NOTE]
+> This is an individual project. You are NOT allowed to work with others. We trust you all to submit your own work only; please don’t let us down.
+
 ## Setup
 
 You need to install some dependencies to finish this project, including Pytorch, `transformers`, .etc. To set up the environment, please execute
@@ -451,7 +454,7 @@ In order to submit your project, run
 python submit.py
 ```
 
-It will generate a zip file `hf.zip` in your project folder. Submit this file to Gradescope. The deadline is **23:59 on June 4th, 2025**. Late submissions will not be accepted.
+It will generate a zip file `hf.zip` in your project folder. Submit this file to [Gradescope](https://www.gradescope.com/courses/995546/assignments/6203817). The deadline is **23:59 on June 4th, 2025**. Late submissions will not be accepted.
 
 > [!NOTE]
 > In this project, the tests on Gradescope are not the same as the tests on your local machine. If your codes get errors, timeouts, or wrong answers on Gradescope, please enhance your codes and try again.
