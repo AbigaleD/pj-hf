@@ -16,7 +16,7 @@ This project is designed to help you get familiar with the Hugging Face Transfor
 <sub>* The grader of this project is originally modified from the pacman project from CS188 in Berkeley, developed in spring 2019. Problems are designed for CS274A Natural Language Processing course project in ShanghaiTech University.</sub>
 
 > [!NOTE]
-> This is an individual project. You are NOT allowed to work with others. We trust you all to submit your own work only; please don’t let us down.
+> This is an individual project and group collaboration is not allowed. We will run plagiarism detection on your submitted code. We trust you all to submit your own work only; please don't let us down.
 
 ## Setup
 
