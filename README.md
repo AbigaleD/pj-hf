@@ -128,13 +128,7 @@ python classification.py
 ```
 
 > [!NOTE]
-> If you have connection problems (in mainland China), try to change the endpoint to the mirror site. Add the following Python codes:
-> ```python
-> import os
-> os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
-> ```
->
-> And place this at the top of your file (before importing transformers). Then everything is fine. If you test codes on Gradescope then there is no such problem.
+> If you have connection problems (in mainland China), try to change the endpoint to the mirror site. See the [trouble shooting](#hugging-face-connection-problems) section for more details.
 
 Sometimes we want a beautiful UI for this. Let's use `gradio`:
 
@@ -461,3 +455,78 @@ It will generate a zip file `hf.zip` in your project folder. Submit this file to
 
 > [!NOTE]
 > In this project, the tests on Gradescope are not the same as the tests on your local machine. If your codes get errors, timeouts, or wrong answers on Gradescope, please enhance your codes and try again.
+
+
+## Trouble Shooting
+
+### Hugging Face Connection Problems
+
+#### Behaviour
+
+```bash
+RuntimeError: Instantiating a pipeline without a task set raised an error: (MaxRetryError("HTTPSConnectionPool(host='huggingface.co', port=443): Max retries exceeded with url: /api/models/HuggingFaceTB/SmolLM2-360M-Instruct (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0xffffffffffff>: Failed to establish a new connection: [Errno 101] Network is unreachable'))"), '(Request ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)')
+```
+
+#### Reason
+
+This is a common problem when you are in mainland China. The Hugging Face API is blocked in mainland China, so you need to use the [mirror site](https://hf-mirror.com) instead.
+
+#### Solution
+
+You can set the environment variable `HF_ENDPOINT` to the mirror site:
+
+<details> <summary>Linux/Mac Users</summary>
+
+```bash
+HF_ENDPOINT=https://hf-mirror.com python autograder.py
+```
+
+</details>
+
+<details> <summary>Windows Users (cmd)</summary>
+
+```bash
+set HF_ENDPOINT=https://hf-mirror.com && python autograder.py
+```
+
+</details>
+
+<details> <summary>Windows Users (PowerShell)</summary>
+
+```powershell
+$env:HF_ENDPOINT="https://hf-mirror.com"; python autograder.py
+```
+
+</details>
+
+Gradescope has its server in the US, therefore you do not need to worry about this problem when you submit your project.
+
+
+### Xet Package
+
+#### Behaviour
+
+```bash
+OSError: HuggingFaceTB/SmolLM2-360M-Instruct does not appear to have a file named pytorch model.bin, model.safetensors, tf model.h5, model.ckpt or flax model.msgpack
+```
+
+#### Reason
+
+You may have seen this warning before:
+    
+```bash
+Xet Storage is enabled for this repo, but the 'hf_xet' package is not installed. Falling back to regular HTTP download. For better performance, install the package with: `pip install huggingface_hub[hf_xet]` or `pip install hf_xet`
+```
+
+And installed the `xet` package.
+
+#### Solution
+
+Uninstall the `xet` package:
+
+```bash
+pip uninstall hf_xet
+```
+
+Please ignore the warning above. We use HTTP download in this project.
+
