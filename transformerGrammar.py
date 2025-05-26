@@ -66,8 +66,62 @@ def mapping_function(example: dict) -> dict:
         }
     """
 
-    """YOUR CODE HERE"""
-    util.raiseNotDefined()
+    actions = example["actions"]
+
+    # Step 1: Validate tree structure
+    stack = []
+    for action in actions:
+        if action.startswith("("):
+            stack.append(action[1:])
+        elif action.endswith(")"):
+            if not stack or stack[-1] != action[:-1]:
+                raise InvalidTreeError()
+            stack.pop()
+    if stack:
+        raise InvalidTreeError()
+
+    # Step 2: Build processed input and labels
+    inputs = []
+    labels = []
+    for action in actions:
+        inputs.append(action)
+        if action.endswith(")"):
+            inputs.append(action)  # duplicate closing nonterminal
+            labels.append(action)
+            labels.append("<pad>")
+        else:
+            labels.append(action)
+
+    # Step 3: Compute position IDs (tree depth)
+    position_ids = []
+    stack = []
+    for token in inputs:
+        if token == "<s>" or token == "</s>":
+            position_ids.append(0)
+        elif token.startswith("("):
+            position_ids.append(len(stack))
+            stack.append(token[1:])
+        elif token.endswith(")"):
+            position_ids.append(len(stack) - 1)
+            if stack:
+                stack.pop()
+        else:
+            position_ids.append(len(stack))
+
+    # Step 4: Attention mask
+    length = len(inputs)
+    attention_mask = torch.ones((length, length), dtype=torch.long)
+    if "</s>" in inputs:
+        eos_idx = inputs.index("</s>")
+        attention_mask[eos_idx] = 0
+        attention_mask[:, eos_idx] = 0
+
+    return {
+        "inputs": inputs,
+        "labels": labels,
+        "position_ids": position_ids,
+        "attention_mask": attention_mask,
+    }
 
 
 def get_trainer(

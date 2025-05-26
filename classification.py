@@ -16,30 +16,67 @@ from transformers import pipeline
 import gradio as gr
 
 
-def get_topic_classification_pipeline() -> Callable[[str], dict]:
-    """
-    Question:
-        Load the pipeline for topic text classification.
-        There are 10 possible labels: 
-            'Society & Culture', 'Science & Mathematics', 'Health',
-            'Education & Reference', 'Computers & Internet', 'Sports', 'Business & Finance',
-            'Entertainment & Music', 'Family & Relationships', 'Politics & Government'
-        Find a proper model from HuggingFace Model Hub, then load the pipeline to classify the text.
-        Notice that we have time limits so you should not use a model that is too large. A model with 
-        100M params is enough.
+# def get_topic_classification_pipeline() -> Callable[[str], dict]:
+#     """
+#     Question:
+#         Load the pipeline for topic text classification.
+#         There are 10 possible labels: 
+#             'Society & Culture', 'Science & Mathematics', 'Health',
+#             'Education & Reference', 'Computers & Internet', 'Sports', 'Business & Finance',
+#             'Entertainment & Music', 'Family & Relationships', 'Politics & Government'
+#         Find a proper model from HuggingFace Model Hub, then load the pipeline to classify the text.
+#         Notice that we have time limits so you should not use a model that is too large. A model with 
+#         100M params is enough.
 
-    Returns:
-        func (Callable): A function that takes a string as input and returns a dictionary with the
-        predicted label and its score.
+#     Returns:
+#         func (Callable): A function that takes a string as input and returns a dictionary with the
+#         predicted label and its score.
 
-    Example:
-        >>> func = get_topic_classification_pipeline()
-        >>> result = func("Would the US constitution be changed if the admendment received 2/3 of the popular vote?")
-        {"label": "Politics & Government", "score": 0.9999999403953552}
-    """
-    pipe = pipeline(model="cointegrated/rubert-tiny-sentiment-balanced")
+#     Example:
+#         >>> func = get_topic_classification_pipeline()
+#         >>> result = func("Would the US constitution be changed if the admendment received 2/3 of the popular vote?")
+#         {"label": "Politics & Government", "score": 0.9999999403953552}
+#     """
+#     pipe = pipeline(model="cointegrated/rubert-tiny-sentiment-balanced")
+#     def func(text: str) -> dict:
+#         return pipe(text)[0]
+#     return func
+
+# def get_topic_classification_pipeline():
+#     # 映射：描述性标签 → 题目要求的标签
+#     label_map = {
+#         "Questions about society, traditions, and culture": "Society & Culture",
+#         "Scientific or mathematical questions": "Science & Mathematics",
+#         "Health-related topics and medical inquiries": "Health",
+#         "Topics related to education and academic reference": "Education & Reference",
+#         "Computers, programming, and internet-related topics": "Computers & Internet",
+#         "Sports, games, and athletic events": "Sports",
+#         "Business, finance, and economic discussions": "Business & Finance",
+#         "Entertainment, music, movies, and pop culture": "Entertainment & Music",
+#         "Family issues, personal relationships, and social dynamics": "Family & Relationships",
+#         "Political systems, government, and laws": "Politics & Government"
+#     }
+
+#     candidate_labels = list(label_map.keys())
+
+#     pipe = pipeline("zero-shot-classification", model="valhalla/distilbart-mnli-12-3")
+
+#     def func(text: str) -> dict:
+#         result = pipe(text, candidate_labels)
+#         predicted_description = result["labels"][0]
+#         mapped_label = label_map[predicted_description]
+#         return {"label": mapped_label, "score": result["scores"][0]}
+
+#     return func
+
+def get_topic_classification_pipeline():
+    model_path = "/home/abigaledong/.0/pj-hf/q2SelfMadeModel/my_topic_model"
+    pipe = pipeline("text-classification", model=model_path, tokenizer=model_path)
+
     def func(text: str) -> dict:
-        return pipe(text)[0]
+        result = pipe(text)[0]
+        return {"label": result["label"], "score": result["score"]}
+    
     return func
 
 
