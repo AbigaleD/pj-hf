@@ -650,12 +650,39 @@ class PreProcessingTest(testClasses.TestCase):
                 return False
 
             att_mask = torch.tensor(attention_mask[i])
-            if not att_mask.equal(output["attention_mask"]):
+            student_mask = output["attention_mask"]
+
+            if not att_mask.equal(student_mask):
                 grades.addMessage("FAIL: %s" % self.path)
                 grades.addMessage("\tWrong attention mask.")
                 grades.addMessage('\taction sequence: "{}"'.format(action))
-                grades.addMessage('\t        student: "{}"'.format(output["attention_mask"]))
+                grades.addMessage('\t        student: "{}"'.format(student_mask))
                 grades.addMessage('\t        correct: "{}"'.format(att_mask))
+
+                # Shapes and dtypes
+                grades.addMessage(f"\tShape student: {student_mask.shape}, dtype: {student_mask.dtype}")
+                grades.addMessage(f"\tShape correct: {att_mask.shape}, dtype: {att_mask.dtype}")
+
+                # Check if shape is different
+                if student_mask.shape != att_mask.shape:
+                    grades.addMessage(f"\tShape mismatch detected.")
+
+                # Count mismatched elements
+                diff = (att_mask != student_mask)
+                mismatch_count = diff.sum().item()
+                grades.addMessage(f"\tTotal mismatched elements: {mismatch_count}")
+
+                # Print a few mismatch details (up to 5)
+                mismatch_indices = diff.nonzero(as_tuple=False)
+                max_show = min(5, mismatch_indices.shape[0])
+                for idx in range(max_show):
+                    pos = tuple(mismatch_indices[idx])
+                    grades.addMessage(f"\tMismatch at {pos}: student={student_mask[pos].item()}, correct={att_mask[pos].item()}")
+
+                # Print full diff if small enough
+                if att_mask.numel() <= 100:
+                    grades.addMessage(f"\tFull difference tensor:\n{att_mask - student_mask}")
+
                 return False
 
         grades.addMessage("PASS: %s" % self.path)
