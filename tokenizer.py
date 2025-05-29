@@ -56,44 +56,35 @@ def clean_vocab(vocab: Dict[str, int], merges: List[Tuple[str, str]]):
     """
 
     """YOUR CODE HERE"""
-    # util.raiseNotDefined()
-    # 1. 按旧 id 排序拿到原始 (token, old_id) 列表
-    original = sorted(vocab.items(), key=lambda x: x[1])
+    def sort_by_id(item):
+        return item[1]
 
-    # 2. 筛出 survivors，并同时做一个 set 以便快速 membership check
+    original = sorted(vocab.items(), key=sort_by_id)
+    
+    
     survivors = []
     survivors_set = set()
     for token, _ in original:
-        # 只去一个 'Ġ' 前缀
-        if token[0] == 'Ġ':
-            core = token[1:]
-        else:
-            core = token
-        # 如果 core 是全数字且长度 > 1 就跳过，否则保留
+        core = token[1:] if token.startswith('Ġ') else token
         if not (core.isdigit() and len(core) > 1):
             survivors.append(token)
             survivors_set.add(token)
-
-    # 3. 过滤 merges：a、b 都要在 survivors 里，且合并后（剥一个 'Ġ'）不是多位数字
     new_merges = []
+    
     for a, b in merges:
         if a not in survivors_set or b not in survivors_set:
             continue
         merged = a + b
-        if merged.startswith('Ġ'):
-            mcore = merged[1:]
-        else:
-            mcore = merged
+        mcore = merged[1:] if merged.startswith('Ġ') else merged
         if mcore.isdigit() and len(mcore) > 1:
             continue
         new_merges.append((a, b))
-
-    # 4. 原地更新 merges
-    merges.clear()
-    merges.extend(new_merges)
-
-    # 5. 按 survivors 在原 vocab 中的老顺序重建 vocab（id 从 0 连续排）
-    vocab.clear()
+        
+        
+    merges[:] = new_merges
+    
+    for key in list(vocab):
+        del vocab[key]
     for idx, token in enumerate(survivors):
         vocab[token] = idx
 

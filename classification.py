@@ -88,16 +88,18 @@ def main():
     args = parser.parse_args()
 
     if args.use_gradio and args.task == "sentiment":
-        # Example usage with Gradio
         pipe = pipeline(model="cointegrated/rubert-tiny-sentiment-balanced")
         iface = gr.Interface.from_pipeline(pipe)
         iface.launch()
 
     elif args.use_gradio and args.task == "topic":
-        # Visualize the topic classification pipeline with Gradio
         pipe = get_topic_classification_pipeline()
+        def classify_text(text: str) -> dict:
+            result = pipe(text)[0]
+            return {result["label"]: result["score"]}
+
         iface = gr.Interface(
-            fn=lambda x: {item["label"]: item["score"] for item in [pipe(x)]},
+            fn=classify_text,
             inputs=gr.components.Textbox(label="Input", render=False),
             outputs=gr.components.Label(label="Classification", render=False),
             title="Text Classification",
@@ -105,12 +107,10 @@ def main():
         iface.launch()
 
     elif not args.use_gradio and args.task == "sentiment":
-        # Example usage
         pipe = pipeline(model="cointegrated/rubert-tiny-sentiment-balanced")
-        print(pipe("This movie is great!")[0]) # {'label': 'positive', 'score': 0.988831102848053}
+        print(pipe("This movie is very wonderful!")[0])
 
     elif not args.use_gradio and args.task == "topic":
-        # Test the function
         func = get_topic_classification_pipeline()
         print(func("Would the US constitution be changed if the admendment received 2/3 of the popular vote?")) # {"label": "Politics & Government", "score": ...}
 
