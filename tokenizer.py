@@ -55,13 +55,11 @@ def clean_vocab(vocab: Dict[str, int], merges: List[Tuple[str, str]]):
             A list of pairs of tokens (:obj:`Tuple[str, str]`), e.g. `[("a", "b"),...]`
     """
 
-    """YOUR CODE HERE"""
     def sort_by_id(item):
         return item[1]
 
     original = sorted(vocab.items(), key=sort_by_id)
-    
-    
+
     survivors = []
     survivors_set = set()
     for token, _ in original:
@@ -70,7 +68,7 @@ def clean_vocab(vocab: Dict[str, int], merges: List[Tuple[str, str]]):
             survivors.append(token)
             survivors_set.add(token)
     new_merges = []
-    
+
     for a, b in merges:
         if a not in survivors_set or b not in survivors_set:
             continue
@@ -79,12 +77,11 @@ def clean_vocab(vocab: Dict[str, int], merges: List[Tuple[str, str]]):
         if mcore.isdigit() and len(mcore) > 1:
             continue
         new_merges.append((a, b))
-        
-        
-    merges[:] = new_merges
-    
-    for key in list(vocab):
-        del vocab[key]
+
+    merges.clear()
+    merges.extend(new_merges)
+
+    vocab.clear()
     for idx, token in enumerate(survivors):
         vocab[token] = idx
 
@@ -93,9 +90,12 @@ if __name__ == '__main__':
 
     print("Running tokenizer.py ...")
 
-    tokenizer = get_gpt2_tokenizer()
+    try:
+        tokenizer = get_gpt2_tokenizer()
 
-    sentence = "Is 1029310928407 a multiple of 3?"
-    print("      Sentence:", sentence)
-    output = tokenizer.encode(sentence)
-    print("After encoding:", output.tokens)
+        sentence = "Is 1029310928407 a multiple of 3?"
+        print("      Sentence:", sentence)
+        output = tokenizer.encode(sentence)
+        print("After encoding:", output.tokens)
+    except Exception as e:
+        print("Exception occurred:", repr(e))

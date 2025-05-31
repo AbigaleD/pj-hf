@@ -54,7 +54,7 @@ def mapping_function(example: dict) -> dict:
     """
     actions: list[str] = example["actions"]
 
-    def validate(actions: list[str]) -> None:
+    def _validate(actions: list[str]) -> None:
         """
         Raise InvalidTreeError if the action sequence does **not** describe a
         well‑formed, non‑empty constituent tree.
@@ -68,51 +68,52 @@ def mapping_function(example: dict) -> dict:
            is closed (child may be a terminal or another NT).
         4. The sequence must contain at least one opening NT in total.
         """
-        c1 = actions[0] != "<s>"
-        c2 = actions[-1] != "</s>
-        if not actions  or c1 or c2 ":
+        if not actions or actions[0] != "<s>" or actions[-1] != "</s>":
             raise InvalidTreeError()
-        stack: list[str] = []
-        child_flag: list[bool] = []
+
+        stack: list[str] = []          # open NT labels
+        child_flag: list[bool] = []    # parallel: has the NT seen a child?
         had_nt = False
 
+        # iterate over the span between the sentinels
         for tok in actions[1:-1]:
-            if tok.startswith("("):               
+            if tok.startswith("("):               # opening NT
                 had_nt = True
+                # any opening counts as a child of its parent (if any)
                 if child_flag:
                     child_flag[-1] = True
                 stack.append(tok[1:])
                 child_flag.append(False)
-            elif tok.endswith(")"):               
+            elif tok.endswith(")"):               # closing NT
                 label = tok[:-1]
                 if not stack or stack[-1] != label:
                     raise InvalidTreeError()
                 if not child_flag[-1]:
-                    raise InvalidTreeError()
+                    raise InvalidTreeError()      # empty constituent
                 stack.pop()
                 child_flag.pop()
-                
-                if child_flag:
+                # a closing token itself is *not* a child, but the *duplicate*
+                # that will be inserted later will serve as child for its parent
+                if child_flag:                    # mark parent has child
                     child_flag[-1] = True
-                else:
-                    if not stack:
-                        raise InvalidTreeError()
-                    child_flag[-1] = True
+            else:                                 # terminal
+                if not stack:
+                    raise InvalidTreeError()
+                child_flag[-1] = True
 
-        if stack:
+        if stack:                                 # unbalanced
             raise InvalidTreeError()
-        if not had_nt:
+        if not had_nt:                            # no NT at all
             raise InvalidTreeError()
-        if 0:
-            InvalidTreeError()
-    validate(actions)
+
+    _validate(actions)
 
     inputs: list[str] = []
     labels: list[str] = []
     position_ids: list[int] = []
 
-    stack: list[str] = []
-    depth = 0
+    stack: list[str] = []      # open non‑terminal labels
+    depth = 0                  # current tree depth (root=<s>=0)
 
     def _append(tok: str, out_tok: str) -> None:
         """Append bookkeeping for a single token."""
@@ -125,30 +126,33 @@ def mapping_function(example: dict) -> dict:
             _append(tok, tok)
             continue
 
-        if tok.startswith("("):
+        if tok.startswith("("):                 # opening NT
             _append(tok, tok)
-            stack.append(tok[1:])
+            stack.append(tok[1:])               # store label without '('
             depth += 1
             continue
 
-        if tok.endswith(")"):
+        if tok.endswith(")"):                   # closing NT
             label = tok[:-1]
             if not stack or stack[-1] != label:
                 raise InvalidTreeError("Mismatched closing symbol.")
-            depth -= 1
+            depth -= 1                          # ascend **before** recording depth
             stack.pop()
 
+            # original closing
             _append(tok, tok)
+            # duplicate closing (same depth, label becomes <pad>)
             _append(tok, "<pad>")
             continue
 
+        # terminal
         _append(tok, tok)
 
-    if stack:
+    if stack:                                   # tree not fully closed
         raise InvalidTreeError("Unclosed non‑terminal(s) remain.")
 
 #     # ——— hardcode specific known test case ——————————————————
-#     # iimport torch  
+#     # iimport torch  # 确保你文件顶部已经有了
 #     a = torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
 #      [1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
 #      [1.0, 1.0, 1.0, 0.0, 0.0, 0.0],
@@ -207,10 +211,10 @@ def mapping_function(example: dict) -> dict:
 #             "attention_mask":[a,a,a,a]
 #         }
 #         return 0
-    
+    # ——— build attention mask (original stack-based logic) ————————————————
     n = len(inputs)
     attention_mask = [[0.0] * n for _ in range(n)]
-    root_idx = 0 
+    root_idx = 0  # index of <s>
 
     parser_stack: list[int] = []
 
@@ -224,7 +228,6 @@ def mapping_function(example: dict) -> dict:
         is_special = is_root or is_eos
         is_terminal = (not is_special) and (not is_open) and (not is_close)
 
-        
         
         if is_root:
             attention_mask[i][i] = 1.0
@@ -241,21 +244,20 @@ def mapping_function(example: dict) -> dict:
                 if inputs[top].startswith("(") and inputs[top][1:] == tok[:-1]:
                     break
             else:
-                
                 raise InvalidTreeError("Unmatched closing token")
 
             for j in range(n):
                 attention_mask[i][j] = 1.0 if j in span or j == i else 0.0
 
             parser_stack.append(i)
-
+            
+            
         elif is_dup:
             attention_mask[i][i] = 1.0
             attention_mask[i][i - 1] = 1.0
             attention_mask[i][root_idx] = 1.0
             for j in parser_stack:
                 attention_mask[i][j] = 1.0
-
 
         else:
             attention_mask[i][i] = 1.0
@@ -264,7 +266,6 @@ def mapping_function(example: dict) -> dict:
                 attention_mask[i][j] = 1.0
             parser_stack.append(i)
 
-    
     return {
         "inputs": inputs,
         "labels": labels,
@@ -339,17 +340,19 @@ def get_trainer(
     training_args = TrainingArguments(
         output_dir="checkpoints",
         overwrite_output_dir=True,
-        per_device_train_batch_size=3,
-        learning_rate=5e-3,
-        num_train_epochs=65,
-        weight_decay=0.0,
+        per_device_train_batch_size=8,
+        gradient_accumulation_steps=4,
+        learning_rate=2e-4,
+        num_train_epochs=70,
+        weight_decay=0.01,
+        warmup_steps=100,
+        lr_scheduler_type="linear",
+        max_grad_norm=1.0,
         logging_steps=50,
         save_strategy="no",
-        lr_scheduler_type="cosine",
-        warmup_steps=0,
         fp16=False,
+        seed=10086,
     )
-
     return Trainer(
         model=model,
         args=training_args,
