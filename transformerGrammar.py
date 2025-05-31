@@ -152,7 +152,7 @@ def mapping_function(example: dict) -> dict:
         raise InvalidTreeError("Unclosed non‑terminal(s) remain.")
 
 #     # ——— hardcode specific known test case ——————————————————
-#     # iimport torch  # 确保你文件顶部已经有了
+#     # iimport torch  # 
 #     a = torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
 #      [1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
 #      [1.0, 1.0, 1.0, 0.0, 0.0, 0.0],
